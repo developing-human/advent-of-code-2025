@@ -10,25 +10,33 @@ pub mod problem01 {
     }
 
     impl Safe {
-        // returns the number of clicks at 0
+        // Moves the dial, returning how many times zero was passed.
         fn turn(&mut self, amount: i32) -> usize {
-            let updated = self.position as i32 + amount;
+            let start = self.position as i32;
+            let end = start + amount;
 
-            // counts number of times going past 100 (which hits zero)
-            // and how many times going past zero... but there are edge
-            // cases around landing on zero
-            let mut zero_clicks = if updated > 0 {
-                (updated / 100) as usize
+            // using % will return negatives, rem_euclid is always non-negative
+            // ex: -1 % 100 => -1, -1.rem_euclid(100) => 99
+            self.position = end.rem_euclid(100) as usize;
+
+            Safe::count_zero_clicks(start, end)
+        }
+
+        /// Counts how many times zero was passed.
+        fn count_zero_clicks(start: i32, end: i32) -> usize {
+            if end > 0 {
+                // for positive, count how many times we passed 100
+                (end / 100) as usize
             } else {
-                (updated / -100) as usize
-            };
+                let zero_clicks = (-end / 100) as usize;
 
-            if updated <= 0 && self.position != 0 {
-                zero_clicks += 1;
+                // for negative, 1 -> -1 counts, but 0 -> -1 does not
+                // so add 1, but not when starting at zero
+                match start {
+                    0 => zero_clicks,
+                    _ => zero_clicks + 1,
+                }
             }
-
-            self.position = updated.rem_euclid(100) as usize;
-            zero_clicks
         }
 
         fn is_zeroed(&self) -> bool {
