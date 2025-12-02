@@ -1,5 +1,11 @@
-use aoc::problems::*;
 use std::process::exit;
+
+use crate::problems::*;
+
+pub mod problems {
+    pub mod problem1;
+    pub mod problem2;
+}
 
 fn main() {
     let first_arg: String = std::env::args().nth(1).expect("problem number is required");
