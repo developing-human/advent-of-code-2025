@@ -15,14 +15,12 @@ fn main() {
         exit(1);
     });
 
-    let output = match first_arg.as_str() {
-        "1" => problem1::solve(&input),
-        "2" => problem2::solve(&input),
+    match first_arg.as_str() {
+        "1" => println!("{:?}", problem1::solve(&input)),
+        "2" => println!("{:?}", problem2::solve(&input)),
         _ => {
             eprintln!("{first_arg} is not yet implemented");
             exit(1);
         }
     };
-
-    println!("{output:?}");
 }
