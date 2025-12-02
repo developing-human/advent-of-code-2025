@@ -27,9 +27,14 @@ fn solve_one_range(range: &str) -> Answer {
     let start: usize = split[0].parse().expect("start of range should be integer");
     let end: usize = split[1].parse().expect("end of range should be integer");
 
-    // (start..=end).filter(is_invalid).sum()
     (start..=end)
-        .map(|num| (num, is_invalid_part_1(&num), is_invalid_part_2(&num)))
+        .map(|num| {
+            (
+                num,
+                has_two_matching_halves(&num),
+                has_matching_partitions(&num),
+            )
+        })
         .map(|(num, part1, part2): (usize, bool, bool)| Answer {
             part1: if part1 { num } else { 0 },
             part2: if part2 { num } else { 0 },
@@ -37,54 +42,48 @@ fn solve_one_range(range: &str) -> Answer {
         .sum()
 }
 
-fn is_invalid_part_1(number: &usize) -> bool {
+fn has_two_matching_halves(number: &usize) -> bool {
     let number_str = format!("{number}");
-
     if number_str.len() % 2 == 1 {
-        return false; // odd length strings are always valid
+        return false; // odd length strings can't match
     }
 
-    let (first_half, second_half) = number_str.split_at(number_str.len() / 2);
-
-    first_half == second_half
+    has_matching_partitions_for_split_size(&number_str, number_str.len() / 2)
 }
 
-fn is_invalid_part_2(number: &usize) -> bool {
-    // I need to check if parts repeat on a split of 1, 2, 3, etc
-    // Up until when? If I have 10 digits, up to half the length rounded down
-    //
-    // TODO: There's certainly optimizations around knowing the result of the previous
-    //       number, because only the last digit will change.
-    //
-    // I can use split_at to break a string into "this chunk" and the rest
-    // then do it again to get the next.
-    //
-    // I can skip a split size if the length isn't divisible by it.
+fn has_matching_partitions(number: &usize) -> bool {
+    // NOTE: There's certainly optimizations around knowing the result of the previous
+    //       number, because often only the last digit will change.
+
     let number_str = format!("{number}");
 
-    'outer: for split_size in 1..=(number_str.len() / 2) {
-        if !number_str.len().is_multiple_of(split_size) {
-            continue;
-        }
+    // try split sizes up to half the length, past that it can't divide evenly
+    let mut split_sizes_to_try = 1..=(number_str.len() / 2);
 
-        let (first_partition, mut rest) = number_str.split_at(split_size);
-        while !rest.is_empty() {
-            let split = rest.split_at(split_size);
+    split_sizes_to_try
+        .any(|split_size| has_matching_partitions_for_split_size(&number_str, split_size))
+}
 
-            let this_partition = split.0;
-            rest = split.1;
-
-            // if this doesn't match, continue outer and try next split size
-            // if it does match, keep going. if all match, return true (is invalid) after inner.
-            if this_partition != first_partition {
-                continue 'outer;
-            }
-        }
-
-        return true; // is invalid
+fn has_matching_partitions_for_split_size(s: &str, split_size: usize) -> bool {
+    // if s can't be split evenly, it won't have matching partitions
+    if !s.len().is_multiple_of(split_size) {
+        return false;
     }
 
-    false // must be valid
+    // split off the first partition, all others must match this
+    let (first_partition, mut rest) = s.split_at(split_size);
+    while !rest.is_empty() {
+        let split = rest.split_at(split_size);
+
+        let this_partition = split.0;
+        rest = split.1;
+
+        if this_partition != first_partition {
+            return false; // the partition doesn't match
+        }
+    }
+
+    true // all partitions matched
 }
 
 #[cfg(test)]
