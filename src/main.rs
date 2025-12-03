@@ -5,6 +5,7 @@ use crate::problems::*;
 pub mod problems {
     pub mod problem1;
     pub mod problem2;
+    pub mod problem3;
 }
 
 pub mod shared;
@@ -24,6 +25,7 @@ fn main() {
     match first_arg.as_str() {
         "1" => println!("{:?}", problem1::solve(&input)),
         "2" => println!("{:?}", problem2::solve(&input)),
+        "3" => println!("{:?}", problem3::solve(&input)),
         _ => {
             eprintln!("ERROR: {first_arg} is not yet implemented");
             exit(1);
