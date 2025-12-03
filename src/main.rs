@@ -10,10 +10,14 @@ pub mod problems {
 pub mod shared;
 
 fn main() {
-    let first_arg: String = std::env::args().nth(1).expect("problem number is required");
+    let first_arg: String = std::env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("ERROR: problem number is required");
+        exit(1);
+    });
+
     let filename = format!("inputs/{}.txt", first_arg);
     let input = std::fs::read_to_string(&filename).unwrap_or_else(|_| {
-        eprintln!("file does not exist: {filename}");
+        eprintln!("ERROR: file does not exist: {filename}");
         exit(1);
     });
 
@@ -21,7 +25,7 @@ fn main() {
         "1" => println!("{:?}", problem1::solve(&input)),
         "2" => println!("{:?}", problem2::solve(&input)),
         _ => {
-            eprintln!("{first_arg} is not yet implemented");
+            eprintln!("ERROR: {first_arg} is not yet implemented");
             exit(1);
         }
     };
