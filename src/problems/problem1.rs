@@ -1,3 +1,5 @@
+use crate::shared::Answer;
+
 struct Safe {
     position: usize,
 }
@@ -57,7 +59,7 @@ fn parse_movement(movement: &str) -> i32 {
     }
 }
 
-pub fn solve(input: &str) -> (usize, usize) {
+pub fn solve(input: &str) -> Answer {
     let mut safe = Safe::default();
 
     let mut zeroes = 0;
@@ -71,7 +73,10 @@ pub fn solve(input: &str) -> (usize, usize) {
         }
     }
 
-    (zeroes, zero_clicks)
+    Answer {
+        part1: zeroes,
+        part2: zero_clicks,
+    }
 }
 
 #[cfg(test)]
@@ -92,14 +97,16 @@ R14
 L82"#;
 
         let result = solve(input);
-        assert_eq!(result, (3, 6));
+        assert_eq!(result.part1, 3);
+        assert_eq!(result.part2, 6);
     }
 
     #[test]
     fn test_solve_full_input() {
         let input = std::fs::read_to_string("inputs/1.txt").unwrap();
         let result = solve(&input);
-        assert_eq!(result, (1076, 6379));
+        assert_eq!(result.part1, 1076);
+        assert_eq!(result.part2, 6379);
     }
 
     #[test]
