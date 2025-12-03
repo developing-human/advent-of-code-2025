@@ -18,6 +18,47 @@ impl Sum for Answer {
     }
 }
 
+pub struct ProductId {
+    text: String,
+    num: usize,
+}
+
+impl ProductId {
+    fn new(id: usize) -> Self {
+        ProductId {
+            text: format!("{id}"),
+            num: id,
+        }
+    }
+
+    fn partitions<'a>(&'a self, split_size: usize) -> PartitionIterator<'a> {
+        PartitionIterator {
+            remaining: &self.text,
+            partition_size: split_size,
+        }
+    }
+}
+
+pub struct PartitionIterator<'a> {
+    remaining: &'a str,
+    partition_size: usize,
+}
+
+impl<'a> Iterator for PartitionIterator<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining.is_empty() {
+            return None;
+        }
+
+        let (partition, remaining) = self.remaining.split_at(self.partition_size);
+        self.remaining = remaining;
+
+        Some(partition)
+    }
+}
+
 pub fn solve(input: &str) -> Answer {
     input.split(",").map(solve_one_range).sum()
 }
@@ -28,62 +69,50 @@ fn solve_one_range(range: &str) -> Answer {
     let end: usize = split[1].parse().expect("end of range should be integer");
 
     (start..=end)
-        .map(|num| {
+        .map(ProductId::new)
+        .map(|id| {
             (
-                num,
-                has_two_matching_halves(&num),
-                has_matching_partitions(&num),
+                has_two_matching_halves(&id),
+                has_matching_partitions(&id),
+                id,
             )
         })
-        .map(|(num, part1, part2): (usize, bool, bool)| Answer {
-            part1: if part1 { num } else { 0 },
-            part2: if part2 { num } else { 0 },
+        .map(|(part1, part2, id): (bool, bool, ProductId)| Answer {
+            part1: if part1 { id.num } else { 0 },
+            part2: if part2 { id.num } else { 0 },
         })
         .sum()
 }
 
-fn has_two_matching_halves(number: &usize) -> bool {
-    let number_str = format!("{number}");
-    if number_str.len() % 2 == 1 {
+fn has_two_matching_halves(id: &ProductId) -> bool {
+    if id.text.len() % 2 == 1 {
         return false; // odd length strings can't match
     }
 
-    has_matching_partitions_for_split_size(&number_str, number_str.len() / 2)
+    has_matching_partitions_for_split_size(id, id.text.len() / 2)
 }
 
-fn has_matching_partitions(number: &usize) -> bool {
+fn has_matching_partitions(id: &ProductId) -> bool {
     // NOTE: There's certainly optimizations around knowing the result of the previous
     //       number, because often only the last digit will change.
 
-    let number_str = format!("{number}");
-
     // try split sizes up to half the length, past that it can't divide evenly
-    let mut split_sizes_to_try = 1..=(number_str.len() / 2);
+    let mut split_sizes_to_try = 1..=(id.text.len() / 2);
 
-    split_sizes_to_try
-        .any(|split_size| has_matching_partitions_for_split_size(&number_str, split_size))
+    split_sizes_to_try.any(|split_size| has_matching_partitions_for_split_size(id, split_size))
 }
 
-fn has_matching_partitions_for_split_size(s: &str, split_size: usize) -> bool {
+fn has_matching_partitions_for_split_size(id: &ProductId, split_size: usize) -> bool {
     // if s can't be split evenly, it won't have matching partitions
-    if !s.len().is_multiple_of(split_size) {
+    if !id.text.len().is_multiple_of(split_size) {
         return false;
     }
 
     // split off the first partition, all others must match this
-    let (first_partition, mut rest) = s.split_at(split_size);
-    while !rest.is_empty() {
-        let split = rest.split_at(split_size);
+    let mut partitions = id.partitions(split_size);
+    let first_partition = partitions.next().unwrap();
 
-        let this_partition = split.0;
-        rest = split.1;
-
-        if this_partition != first_partition {
-            return false; // the partition doesn't match
-        }
-    }
-
-    true // all partitions matched
+    partitions.all(|this_partition| this_partition == first_partition)
 }
 
 #[cfg(test)]
