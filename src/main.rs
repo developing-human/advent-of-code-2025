@@ -7,6 +7,8 @@ pub mod problems {
     pub mod problem2;
 }
 
+pub mod shared;
+
 fn main() {
     let first_arg: String = std::env::args().nth(1).expect("problem number is required");
     let filename = format!("inputs/{}.txt", first_arg);

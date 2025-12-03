@@ -1,4 +1,4 @@
-use std::iter::Sum;
+use crate::shared::{Answer, PartitionIterator};
 
 /// A product id, which implements validity checks.
 pub struct ProductId {
@@ -14,15 +14,8 @@ impl ProductId {
         }
     }
 
-    fn partitions<'a>(&'a self, split_size: usize) -> PartitionIterator<'a> {
-        PartitionIterator {
-            remaining: &self.text,
-            partition_size: split_size,
-        }
-    }
-
     fn has_two_matching_partitions(&self) -> bool {
-        if self.text.len() % 2 == 1 {
+        if !self.text.len().is_multiple_of(2) {
             return false; // odd length strings can't match
         }
 
@@ -48,45 +41,9 @@ impl ProductId {
 
         partitions.all(|this_partition| this_partition == first_partition)
     }
-}
 
-/// Splits a string into partitions of the requested size
-pub struct PartitionIterator<'a> {
-    remaining: &'a str,
-    partition_size: usize,
-}
-
-impl<'a> Iterator for PartitionIterator<'a> {
-    type Item = &'a str;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining.is_empty() {
-            return None;
-        }
-
-        let (partition, remaining) = self.remaining.split_at(self.partition_size);
-        self.remaining = remaining;
-
-        Some(partition)
-    }
-}
-
-#[derive(Debug)]
-pub struct Answer {
-    part1: usize,
-    part2: usize,
-}
-
-/// Enables calling .sum() on an iterator of Answers
-impl Sum for Answer {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let mut total = Answer { part1: 0, part2: 0 };
-        for val in iter {
-            total.part1 += val.part1;
-            total.part2 += val.part2;
-        }
-
-        total
+    fn partitions<'a>(&'a self, split_size: usize) -> PartitionIterator<'a> {
+        PartitionIterator::new(&self.text, split_size)
     }
 }
 
@@ -100,17 +57,15 @@ fn solve_one_range(range: &str) -> Answer {
     let end: usize = split[1].parse().expect("end of range should be integer");
 
     (start..=end)
-        .map(ProductId::new)
-        .map(|id| {
-            (
-                id.has_two_matching_partitions(),
-                id.has_n_matching_partitions(),
-                id,
-            )
-        })
-        .map(|(part1, part2, id): (bool, bool, ProductId)| Answer {
-            part1: if part1 { id.num } else { 0 },
-            part2: if part2 { id.num } else { 0 },
+        .map(|num| {
+            let id = ProductId::new(num);
+            let two_matches = id.has_two_matching_partitions();
+            let n_matches = id.has_n_matching_partitions();
+
+            Answer {
+                part1: if two_matches { id.num } else { 0 },
+                part2: if n_matches { id.num } else { 0 },
+            }
         })
         .sum()
 }
