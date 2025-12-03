@@ -1,38 +1,38 @@
-use crate::shared::{Answer, PartitionIterator};
+use crate::shared::{Answer, NumericPartitionIterator};
 use rayon::prelude::*;
 
 /// A product id, which implements validity checks.
 pub struct ProductId {
-    text: String,
-    num: usize,
+    id: usize,
 }
 
 impl ProductId {
     fn new(id: usize) -> Self {
-        ProductId {
-            text: format!("{id}"),
-            num: id,
-        }
+        ProductId { id }
+    }
+
+    fn len(&self) -> u32 {
+        self.id.ilog10() + 1
     }
 
     fn has_two_matching_partitions(&self) -> bool {
-        if !self.text.len().is_multiple_of(2) {
+        if !self.len().is_multiple_of(2) {
             return false; // odd length strings can't match
         }
 
-        self.has_matching_partitions_of_size(self.text.len() / 2)
+        self.has_matching_partitions_of_size(self.len() / 2)
     }
 
     fn has_n_matching_partitions(&self) -> bool {
         // try split sizes up to half the length, past that it can't divide evenly
-        let mut split_sizes_to_try = 1..=(self.text.len() / 2);
+        let mut split_sizes_to_try = 1..=(self.len() / 2);
 
         split_sizes_to_try.any(|split_size| self.has_matching_partitions_of_size(split_size))
     }
 
-    fn has_matching_partitions_of_size(&self, split_size: usize) -> bool {
+    fn has_matching_partitions_of_size(&self, split_size: u32) -> bool {
         // if s can't be split evenly, it won't have matching partitions
-        if !self.text.len().is_multiple_of(split_size) {
+        if !self.len().is_multiple_of(split_size) {
             return false;
         }
 
@@ -43,8 +43,8 @@ impl ProductId {
         partitions.all(|this_partition| this_partition == first_partition)
     }
 
-    fn partitions<'a>(&'a self, split_size: usize) -> PartitionIterator<'a> {
-        PartitionIterator::new(&self.text, split_size)
+    fn partitions(&self, split_size: u32) -> NumericPartitionIterator {
+        NumericPartitionIterator::new(self.id, split_size)
     }
 }
 
@@ -69,8 +69,8 @@ fn solve_one_range(range: &str) -> Answer {
             let n_matches = id.has_n_matching_partitions();
 
             Answer {
-                part1: if two_matches { id.num } else { 0 },
-                part2: if n_matches { id.num } else { 0 },
+                part1: if two_matches { id.id } else { 0 },
+                part2: if n_matches { id.id } else { 0 },
             }
         })
         .sum()
