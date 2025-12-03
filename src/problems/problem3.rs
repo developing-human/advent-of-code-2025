@@ -11,16 +11,16 @@ impl<'a> BatteryBank<'a> {
 
     fn maximum_joltage(&self, max_batteries: usize) -> usize {
         // CALCULATE INDIVIDUAL JOLTAGES (iterates right to left)
-        let mut digit_iter = self.joltages.chars().rev().map(|c| c.to_digit(10).unwrap());
+        let mut battery_iter = self.joltages.chars().rev().map(|c| c.to_digit(10).unwrap());
 
         // INITIALIZE JOLTAGES
-        let mut selected: Vec<u32> = digit_iter.by_ref().take(max_batteries).collect();
-        selected.reverse(); // 0 is highest order digit, last is ones digit
+        let mut selected: Vec<u32> = battery_iter.by_ref().take(max_batteries).collect();
+        selected.reverse();
 
         // DETERMINE MAXIMIZED JOLTAGE ARRAY
-        for this_digit in digit_iter {
+        for this_battery in battery_iter {
             // a battery that is available as a replacement
-            let mut available_battery = this_digit;
+            let mut available_battery = this_battery;
 
             for selected_battery in selected.iter_mut() {
                 if available_battery >= *selected_battery {
