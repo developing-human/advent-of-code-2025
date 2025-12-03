@@ -1,4 +1,5 @@
 use crate::shared::{Answer, PartitionIterator};
+use rayon::prelude::*;
 
 /// A product id, which implements validity checks.
 pub struct ProductId {
@@ -48,7 +49,12 @@ impl ProductId {
 }
 
 pub fn solve(input: &str) -> Answer {
-    input.split(",").map(solve_one_range).sum()
+    input
+        .split(",")
+        .collect::<Vec<&str>>()
+        .par_iter()
+        .map(|s| solve_one_range(s))
+        .sum()
 }
 
 fn solve_one_range(range: &str) -> Answer {
