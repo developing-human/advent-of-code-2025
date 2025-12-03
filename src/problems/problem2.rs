@@ -1,23 +1,6 @@
 use std::iter::Sum;
 
-#[derive(Debug)]
-pub struct Answer {
-    part1: usize,
-    part2: usize,
-}
-
-impl Sum for Answer {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let mut total = Answer { part1: 0, part2: 0 };
-        for val in iter {
-            total.part1 += val.part1;
-            total.part2 += val.part2;
-        }
-
-        total
-    }
-}
-
+/// A product id, which implements validity checks.
 pub struct ProductId {
     text: String,
     num: usize,
@@ -37,8 +20,37 @@ impl ProductId {
             partition_size: split_size,
         }
     }
+
+    fn has_two_matching_partitions(&self) -> bool {
+        if self.text.len() % 2 == 1 {
+            return false; // odd length strings can't match
+        }
+
+        self.has_matching_partitions_of_size(self.text.len() / 2)
+    }
+
+    fn has_n_matching_partitions(&self) -> bool {
+        // try split sizes up to half the length, past that it can't divide evenly
+        let mut split_sizes_to_try = 1..=(self.text.len() / 2);
+
+        split_sizes_to_try.any(|split_size| self.has_matching_partitions_of_size(split_size))
+    }
+
+    fn has_matching_partitions_of_size(&self, split_size: usize) -> bool {
+        // if s can't be split evenly, it won't have matching partitions
+        if !self.text.len().is_multiple_of(split_size) {
+            return false;
+        }
+
+        // split off the first partition, all others must match this
+        let mut partitions = self.partitions(split_size);
+        let first_partition = partitions.next().unwrap();
+
+        partitions.all(|this_partition| this_partition == first_partition)
+    }
 }
 
+/// Splits a string into partitions of the requested size
 pub struct PartitionIterator<'a> {
     remaining: &'a str,
     partition_size: usize,
@@ -59,6 +71,25 @@ impl<'a> Iterator for PartitionIterator<'a> {
     }
 }
 
+#[derive(Debug)]
+pub struct Answer {
+    part1: usize,
+    part2: usize,
+}
+
+/// Enables calling .sum() on an iterator of Answers
+impl Sum for Answer {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut total = Answer { part1: 0, part2: 0 };
+        for val in iter {
+            total.part1 += val.part1;
+            total.part2 += val.part2;
+        }
+
+        total
+    }
+}
+
 pub fn solve(input: &str) -> Answer {
     input.split(",").map(solve_one_range).sum()
 }
@@ -72,8 +103,8 @@ fn solve_one_range(range: &str) -> Answer {
         .map(ProductId::new)
         .map(|id| {
             (
-                has_two_matching_halves(&id),
-                has_matching_partitions(&id),
+                id.has_two_matching_partitions(),
+                id.has_n_matching_partitions(),
                 id,
             )
         })
@@ -82,37 +113,6 @@ fn solve_one_range(range: &str) -> Answer {
             part2: if part2 { id.num } else { 0 },
         })
         .sum()
-}
-
-fn has_two_matching_halves(id: &ProductId) -> bool {
-    if id.text.len() % 2 == 1 {
-        return false; // odd length strings can't match
-    }
-
-    has_matching_partitions_for_split_size(id, id.text.len() / 2)
-}
-
-fn has_matching_partitions(id: &ProductId) -> bool {
-    // NOTE: There's certainly optimizations around knowing the result of the previous
-    //       number, because often only the last digit will change.
-
-    // try split sizes up to half the length, past that it can't divide evenly
-    let mut split_sizes_to_try = 1..=(id.text.len() / 2);
-
-    split_sizes_to_try.any(|split_size| has_matching_partitions_for_split_size(id, split_size))
-}
-
-fn has_matching_partitions_for_split_size(id: &ProductId, split_size: usize) -> bool {
-    // if s can't be split evenly, it won't have matching partitions
-    if !id.text.len().is_multiple_of(split_size) {
-        return false;
-    }
-
-    // split off the first partition, all others must match this
-    let mut partitions = id.partitions(split_size);
-    let first_partition = partitions.next().unwrap();
-
-    partitions.all(|this_partition| this_partition == first_partition)
 }
 
 #[cfg(test)]
