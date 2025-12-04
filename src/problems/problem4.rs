@@ -1,23 +1,87 @@
 use crate::shared::Answer;
 
+const NEIGHBOR_DELTAS: [(i32, i32); 8] = [
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+];
+
 struct HelpfulDiagram {
+    neighbor_counts: Vec<Vec<usize>>,
     rolls: Vec<Vec<bool>>,
     width: usize,
     height: usize,
 }
 
 impl HelpfulDiagram {
-    fn parse(input: &str) -> Self {
-        let rolls: Vec<Vec<bool>> = input
-            .lines()
-            .map(|line| line.chars().map(|c| c == '@').collect())
-            .collect();
+    pub fn parse(input: &str) -> Self {
+        let lines: Vec<&str> = input.lines().collect();
+        let width = lines[0].len();
+        let height = lines.len();
 
-        Self {
-            width: rolls[0].len(),
-            height: rolls.len(),
+        let rolls = vec![vec![false; height]; width];
+        let neighbor_counts = vec![vec![0_usize; height]; width];
+        let mut diagram = Self {
+            width,
+            height,
             rolls,
+            neighbor_counts,
+        };
+
+        for (y, line) in input.lines().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                if c == '@' {
+                    diagram.add_roll(x, y);
+                }
+            }
         }
+
+        for y in 0..height {
+            for x in 0..width {
+                print!("{} ", diagram.neighbor_counts[x][y])
+            }
+            println!();
+        }
+
+        diagram
+    }
+
+    pub fn add_roll(&mut self, x: usize, y: usize) {
+        self.rolls[x][y] = true;
+
+        let (x, y) = (x as i32, y as i32);
+        for (dx, dy) in NEIGHBOR_DELTAS {
+            let neighbor_x = x + dx;
+            let neighbor_y = y + dy;
+
+            if self.in_bounds(neighbor_x, neighbor_y) {
+                self.neighbor_counts[neighbor_x as usize][neighbor_y as usize] += 1;
+            }
+        }
+    }
+
+    //TODO: Deduplicate w/ add_roll if this approach works nicely
+    pub fn remove_roll(&mut self, x: usize, y: usize) {
+        self.rolls[x][y] = false;
+
+        let (x, y) = (x as i32, y as i32);
+        for (dx, dy) in NEIGHBOR_DELTAS {
+            let neighbor_x = x + dx;
+            let neighbor_y = y + dy;
+
+            if self.in_bounds(neighbor_x, neighbor_y) {
+                self.neighbor_counts[neighbor_x as usize][neighbor_y as usize] -= 1;
+            }
+        }
+    }
+
+    fn in_bounds(&self, x: i32, y: i32) -> bool {
+        x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32
     }
 
     // Checks if a roll is present. Returns false if out of bounds.
@@ -26,25 +90,11 @@ impl HelpfulDiagram {
             return false;
         }
 
-        self.rolls[y as usize][x as usize]
+        self.rolls[x as usize][y as usize]
     }
 
     fn count_adjacent_rolls(&self, x: i32, y: i32) -> usize {
-        let deltas = [
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-            (0, -1),
-            (0, 1),
-            (1, -1),
-            (1, 0),
-            (1, 1),
-        ];
-
-        deltas
-            .iter()
-            .filter(|d| self.has_roll_at(x + d.0, y + d.1))
-            .count()
+        self.neighbor_counts[x as usize][y as usize]
     }
 }
 
