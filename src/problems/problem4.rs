@@ -1,6 +1,6 @@
 use crate::shared::Answer;
 
-const TOO_MANY_NEIGHBORS_TO_MOVE: usize = 4;
+const TOO_MANY_NEIGHBORS: usize = 4;
 const NEIGHBOR_DELTAS: [(i32, i32); 8] = [
     (-1, -1),
     (-1, 0),
@@ -94,7 +94,7 @@ impl HelpfulDiagram {
                 self.neighbor_counts[neighbor_x][neighbor_y] -= 1;
 
                 if self.has_roll_at(neighbor_x as i32, neighbor_y as i32)
-                    && self.neighbor_counts[neighbor_x][neighbor_y] < TOO_MANY_NEIGHBORS_TO_MOVE
+                    && self.neighbor_counts[neighbor_x][neighbor_y] < TOO_MANY_NEIGHBORS
                 {
                     removed_count += self.remove_roll_recursive(neighbor_x, neighbor_y);
                 }
@@ -111,7 +111,7 @@ impl HelpfulDiagram {
 
     /// Checks if a roll is present. Returns false if out of bounds.
     fn has_roll_at(&self, x: i32, y: i32) -> bool {
-        if self.in_bounds(x, y) {
+        if !self.in_bounds(x, y) {
             return false;
         }
 
@@ -132,9 +132,7 @@ pub fn solve(input: &str) -> Answer {
         for x in 0..diagram.width {
             let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
 
-            if diagram.has_roll_at(x as i32, y as i32)
-                && adjacent_rolls < TOO_MANY_NEIGHBORS_TO_MOVE
-            {
+            if diagram.has_roll_at(x as i32, y as i32) && adjacent_rolls < TOO_MANY_NEIGHBORS {
                 can_initially_remove += 1;
             }
         }
@@ -146,9 +144,7 @@ pub fn solve(input: &str) -> Answer {
         for x in 0..diagram.width {
             let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
 
-            if diagram.has_roll_at(x as i32, y as i32)
-                && adjacent_rolls < TOO_MANY_NEIGHBORS_TO_MOVE
-            {
+            if diagram.has_roll_at(x as i32, y as i32) && adjacent_rolls < TOO_MANY_NEIGHBORS {
                 can_eventually_remove += diagram.remove_roll_recursive(x, y);
             }
         }
