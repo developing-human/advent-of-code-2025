@@ -35,13 +35,11 @@ impl<'a> BatteryBank<'a> {
 
         // CALCULATE MAXIMUM JOLTAGE
         selected
-            .into_iter()
-            .enumerate()
-            .map(|(idx, joltage)| {
-                let exponent = (max_batteries - idx - 1) as u32;
-                10_usize.pow(exponent) * joltage as usize
-            })
-            .sum()
+            .iter()
+            .map(|i| i.to_string())
+            .collect::<String>()
+            .parse()
+            .unwrap()
     }
 }
 
