@@ -1,4 +1,7 @@
-use std::iter::Sum;
+use std::{
+    iter::Sum,
+    ops::{Add, Div, Range, Rem, Sub},
+};
 
 /// Splits a string into partitions of the requested size
 pub struct PartitionIterator<'a> {
@@ -117,6 +120,63 @@ impl Iterator for Neighborator {
         }
 
         None // no more neighbors :(
+    }
+}
+
+pub struct Alternator<T> {
+    current: T,
+    range: Range<T>,
+    start_is_even: bool,
+}
+
+impl<T> Alternator<T>
+where
+    T: Div<Output = T>
+        + Rem<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + PartialEq
+        + From<u8>
+        + Copy,
+{
+    pub fn new(range: Range<T>) -> Self {
+        Self {
+            current: range.start,
+            start_is_even: range.start % T::from(2u8) == T::from(0u8),
+            range,
+        }
+    }
+}
+
+impl<T> Iterator for Alternator<T>
+where
+    T: Div<Output = T>
+        + Rem<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + PartialEq
+        + From<u8>
+        + Copy,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current == self.range.end {
+            return None;
+        }
+
+        let value = self.current;
+        self.current = self.current + T::from(1);
+
+        let distance_from_start = value - self.range.start;
+        let is_even = value % T::from(2u8) == T::from(0u8);
+
+        if self.start_is_even == is_even {
+            Some(self.range.start + distance_from_start / T::from(2u8))
+        } else {
+            // if end is 10, i want 9 on the first odd. and then 8.
+            Some(self.range.end - distance_from_start / T::from(2u8) - T::from(1u8))
+        }
     }
 }
 
@@ -243,5 +303,39 @@ mod tests {
         assert_eq!(v.len(), 2);
         assert!(v.contains(&(0, 0)));
         assert!(v.contains(&(0, 2)));
+    }
+
+    #[test]
+    fn alternator_start_at_0() {
+        let mut alternator = Alternator::new(0..4);
+
+        assert_eq!(alternator.next(), Some(0));
+        assert_eq!(alternator.next(), Some(3));
+        assert_eq!(alternator.next(), Some(1));
+        assert_eq!(alternator.next(), Some(2));
+        assert_eq!(alternator.next(), None);
+    }
+
+    #[test]
+    fn alternator_start_at_nonzero() {
+        let mut alternator = Alternator::new(4..9);
+
+        assert_eq!(alternator.next(), Some(4));
+        assert_eq!(alternator.next(), Some(8));
+        assert_eq!(alternator.next(), Some(5));
+        assert_eq!(alternator.next(), Some(7));
+        assert_eq!(alternator.next(), Some(6));
+        assert_eq!(alternator.next(), None);
+    }
+
+    #[test]
+    fn alternator_start_at_odd() {
+        let mut alternator = Alternator::new(1..5);
+
+        assert_eq!(alternator.next(), Some(1));
+        assert_eq!(alternator.next(), Some(4));
+        assert_eq!(alternator.next(), Some(2));
+        assert_eq!(alternator.next(), Some(3));
+        assert_eq!(alternator.next(), None);
     }
 }

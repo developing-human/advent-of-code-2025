@@ -1,4 +1,4 @@
-use crate::shared::{Answer, Neighborator};
+use crate::shared::{Alternator, Answer, Neighborator};
 
 const TOO_MANY_NEIGHBORS: usize = 4;
 
@@ -56,7 +56,7 @@ impl HelpfulDiagram {
         self.rolls[x][y] = false;
         let mut removed_count = 1;
 
-        // self.draw();
+        self.draw();
         // sleep(Duration::from_millis(5));
 
         for (neighbor_x, neighbor_y) in self.neighborator(x, y) {
@@ -120,8 +120,20 @@ pub fn solve(input: &str) -> Answer {
 
     // Recursively removes rolls, as it becomes possible to remove them.
     let mut can_eventually_remove = 0;
-    for y in 0..diagram.height {
-        for x in 0..diagram.width {
+
+    for _ in 0..3500 {
+        let x = rand::random_range(0..diagram.width);
+        let y = rand::random_range(0..diagram.height);
+
+        let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
+
+        if diagram.has_roll_at(x, y) && adjacent_rolls < TOO_MANY_NEIGHBORS {
+            can_eventually_remove += diagram.remove_roll_recursive(x, y);
+        }
+    }
+
+    for y in Alternator::new(0..diagram.height) {
+        for x in Alternator::new(0..diagram.width) {
             let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
 
             if diagram.has_roll_at(x, y) && adjacent_rolls < TOO_MANY_NEIGHBORS {
