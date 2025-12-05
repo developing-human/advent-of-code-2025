@@ -16,7 +16,7 @@ impl ComplicatedInventoryManagmentSystem {
         fresh_ingredients.sort_unstable();
 
         // Pull out one range before looping, so the previous entry always exists.
-        let mut iter = fresh_ingredients.iter_mut();
+        let mut iter = fresh_ingredients.into_iter();
         let mut fresh_ingredients_merged = vec![iter.next().unwrap()];
 
         for range in iter {
@@ -33,13 +33,6 @@ impl ComplicatedInventoryManagmentSystem {
                 fresh_ingredients_merged.push(range)
             }
         }
-
-        // Copy from the mutable references into owned immutable values.
-        // TODO: Can I do this without cloning?
-        let fresh_ingredients_merged = fresh_ingredients_merged
-            .into_iter()
-            .map(|r| r.clone())
-            .collect();
 
         Self {
             fresh_ingredients: fresh_ingredients_merged,
@@ -74,7 +67,7 @@ impl ComplicatedInventoryManagmentSystem {
 
 type IngredientId = usize;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug)]
 struct IngredientRange {
     start: IngredientId,
     end: IngredientId,
