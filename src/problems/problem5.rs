@@ -1,4 +1,4 @@
-use std::{collections::BinaryHeap, ops::RangeInclusive};
+use std::{num::ParseIntError, str::FromStr};
 
 use crate::shared::Answer;
 
@@ -8,17 +8,41 @@ struct ComplicatedInventoryManagmentSystem {
 
 impl ComplicatedInventoryManagmentSystem {
     fn load(fresh_ingredients: &str) -> Self {
-        let mut heap_of_ingredients = BinaryHeap::new();
-        for line in fresh_ingredients.lines() {
-            let (start, end) = line.split_once("-").unwrap();
-            let start: IngredientId = start.parse().unwrap();
-            let end: IngredientId = end.parse().unwrap();
+        let mut fresh_ingredients: Vec<IngredientRange> = fresh_ingredients
+            .lines()
+            .map(|s| s.parse().unwrap())
+            .collect();
 
-            heap_of_ingredients.push(IngredientRange::new(start..=end));
+        fresh_ingredients.sort_unstable();
+
+        // Pull out one range before looping, so the previous entry always exists.
+        let mut iter = fresh_ingredients.iter_mut();
+        let mut fresh_ingredients_merged = vec![iter.next().unwrap()];
+
+        for range in iter {
+            let previous_idx = fresh_ingredients_merged.len() - 1;
+            let previous = fresh_ingredients_merged.get_mut(previous_idx).unwrap();
+
+            // When a new range starts inside the previous, extend previous
+            // Otherwise, add a new range
+            if range.start <= previous.end {
+                if range.end > previous.end {
+                    previous.end = range.end;
+                }
+            } else {
+                fresh_ingredients_merged.push(range)
+            }
         }
 
+        // Copy from the mutable references into owned immutable values.
+        // TODO: Can I do this without cloning?
+        let fresh_ingredients_merged = fresh_ingredients_merged
+            .into_iter()
+            .map(|r| r.clone())
+            .collect();
+
         Self {
-            fresh_ingredients: heap_of_ingredients.into_sorted_vec(),
+            fresh_ingredients: fresh_ingredients_merged,
         }
     }
 
@@ -31,43 +55,38 @@ impl ComplicatedInventoryManagmentSystem {
             Ok(_) => true,
 
             // If Err (not found), pos is either within the range or after it, so check the prior range.
-            // Err(0) => false,
-            // Err(pos) => self.fresh_ingredients[pos - 1].contains(id),
-            Err(mut idx) => {
-                // search backwards, until the id is larger than the range's start
-                // this handles overlapping ranges
-                while idx > 0 && id >= self.fresh_ingredients[idx - 1].start {
-                    if self.fresh_ingredients[idx - 1].contains(id) {
-                        return true;
-                    }
-
-                    idx -= 1;
-                }
-
-                false
-            }
+            Err(0) => false,
+            Err(pos) => self.fresh_ingredients[pos - 1].contains(id),
         }
+    }
+
+    fn count_all_fresh_ingredients(&self) -> usize {
+        self.fresh_ingredients.iter().map(|r| r.len()).sum()
+    }
+
+    fn count_requested_fresh_ingredients(&self, requested_ingredients: Vec<IngredientId>) -> usize {
+        requested_ingredients
+            .into_iter()
+            .filter(|&ingredient| self.is_ingredient_fresh(ingredient))
+            .count()
     }
 }
 
 type IngredientId = usize;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 struct IngredientRange {
     start: IngredientId,
     end: IngredientId,
 }
 
 impl IngredientRange {
-    fn new(range: RangeInclusive<IngredientId>) -> Self {
-        Self {
-            start: *range.start(),
-            end: *range.end(),
-        }
-    }
-
     fn contains(&self, id: IngredientId) -> bool {
         id >= self.start && id <= self.end
+    }
+
+    fn len(&self) -> usize {
+        self.end - self.start + 1
     }
 }
 
@@ -83,20 +102,30 @@ impl Ord for IngredientRange {
     }
 }
 
+impl FromStr for IngredientRange {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (start, end) = s.split_once("-").expect("all ranges should have a hyphen");
+        let start: IngredientId = start.parse()?;
+        let end: IngredientId = end.parse()?;
+
+        Ok(IngredientRange { start, end })
+    }
+}
+
 pub fn solve(input: &str) -> Answer {
     let (fresh_ingredients, ingredients_to_check) = input.split_once("\n\n").unwrap();
 
-    let cims = ComplicatedInventoryManagmentSystem::load(fresh_ingredients);
-
-    let fresh_ingredient_count = ingredients_to_check
+    let requested_ingredients = ingredients_to_check
         .lines()
         .map(|line| line.parse::<IngredientId>().unwrap())
-        .filter(|&ingredient| cims.is_ingredient_fresh(ingredient))
-        .count();
+        .collect();
 
+    let cims = ComplicatedInventoryManagmentSystem::load(fresh_ingredients);
     Answer {
-        part1: fresh_ingredient_count,
-        part2: 0,
+        part1: cims.count_requested_fresh_ingredients(requested_ingredients),
+        part2: cims.count_all_fresh_ingredients(),
     }
 }
 
@@ -121,6 +150,7 @@ mod tests {
 
         let result = solve(input.trim());
         assert_eq!(result.part1, 3);
+        assert_eq!(result.part2, 14);
     }
 
     #[test]
