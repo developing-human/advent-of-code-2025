@@ -123,6 +123,8 @@ impl Iterator for Neighborator {
     }
 }
 
+/// An iterator which alternates over a range of numbers, but covers the entire range. For
+/// example, 0..10 would have the sequence: 0, 9, 1, 8, 2, 7, 3, 6, 4, 5
 pub struct Alternator<T> {
     current: T,
     range: Range<T>,
