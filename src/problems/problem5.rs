@@ -2,17 +2,31 @@ use std::{num::ParseIntError, str::FromStr};
 
 use crate::shared::Answer;
 
+/// A complicated inventory management system which tracks fresh ingredients by ranges of ids.
 struct ComplicatedInventoryManagmentSystem {
     fresh_ingredients: Vec<IngredientRange>,
 }
 
 impl ComplicatedInventoryManagmentSystem {
     fn load(fresh_ingredients: &str) -> Self {
-        let mut fresh_ingredients: Vec<IngredientRange> = fresh_ingredients
+        let fresh_ingredients: Vec<IngredientRange> = fresh_ingredients
             .lines()
             .map(|s| s.parse().unwrap())
             .collect();
 
+        Self {
+            fresh_ingredients: Self::build_non_overlapping_ingredient_ranges(fresh_ingredients),
+        }
+    }
+
+    fn build_non_overlapping_ingredient_ranges(
+        mut fresh_ingredients: Vec<IngredientRange>,
+    ) -> Vec<IngredientRange> {
+        // Sorting simplifies building out the non-overlapping list.
+        //
+        // Without sorting, edge cases emerge around:
+        // 1. ranges which overlap multiple ranges
+        // 2. ranges which are entirely contained within others
         fresh_ingredients.sort_unstable();
 
         // Pull out one range before looping, so the previous entry always exists.
@@ -20,8 +34,7 @@ impl ComplicatedInventoryManagmentSystem {
         let mut fresh_ingredients_merged = vec![iter.next().unwrap()];
 
         for range in iter {
-            let previous_idx = fresh_ingredients_merged.len() - 1;
-            let previous = fresh_ingredients_merged.get_mut(previous_idx).unwrap();
+            let previous = fresh_ingredients_merged.last_mut().unwrap();
 
             // When a new range starts inside the previous, extend previous
             // Otherwise, add a new range
@@ -34,9 +47,7 @@ impl ComplicatedInventoryManagmentSystem {
             }
         }
 
-        Self {
-            fresh_ingredients: fresh_ingredients_merged,
-        }
+        fresh_ingredients_merged
     }
 
     fn is_ingredient_fresh(&self, id: IngredientId) -> bool {
