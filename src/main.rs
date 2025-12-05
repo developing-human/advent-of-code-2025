@@ -1,4 +1,4 @@
-use std::process::exit;
+use std::{process::exit, time::Instant};
 
 use crate::problems::*;
 
@@ -13,6 +13,7 @@ pub mod problems {
 pub mod shared;
 
 fn main() {
+    let start = Instant::now();
     let first_arg: String = std::env::args().nth(1).unwrap_or_else(|| {
         eprintln!("ERROR: problem number is required");
         exit(1);
@@ -35,4 +36,5 @@ fn main() {
             exit(1);
         }
     };
+    println!("Took: {:?}", start.elapsed());
 }
