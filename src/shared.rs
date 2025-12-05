@@ -64,6 +64,62 @@ impl Iterator for NumericPartitionIterator {
     }
 }
 
+/// Given a location (x, y) and limits, returns up to eight neighbors which are in bounds.
+pub struct Neighborator {
+    center: (usize, usize),
+    dimensions: (usize, usize),
+
+    index: usize,
+}
+
+impl Neighborator {
+    pub fn new(center: (usize, usize), dimensions: (usize, usize)) -> Self {
+        Self {
+            center,
+            dimensions,
+            index: 0,
+        }
+    }
+}
+
+const NEIGHBOR_DELTAS: [(i32, i32); 8] = [
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+];
+
+impl Iterator for Neighborator {
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.index < NEIGHBOR_DELTAS.len() {
+            let delta = NEIGHBOR_DELTAS[self.index];
+            self.index += 1;
+
+            // Is x in bounds?
+            let neighbor_x = self.center.0 as i32 + delta.0;
+            if neighbor_x < 0 || neighbor_x >= self.dimensions.0 as i32 {
+                continue; // try the next potential neighbor
+            }
+
+            // Is y in bounds?
+            let neighbor_y = self.center.1 as i32 + delta.1;
+            if neighbor_y < 0 || neighbor_y >= self.dimensions.1 as i32 {
+                continue; // try the next potential neighbor
+            }
+
+            return Some((neighbor_x as usize, neighbor_y as usize));
+        }
+
+        None // no more neighbors :(
+    }
+}
+
 #[derive(Debug)]
 pub struct Answer {
     pub part1: usize,
@@ -125,5 +181,67 @@ mod tests {
         assert_eq!(iter.next(), Some(456));
         assert_eq!(iter.next(), Some(23));
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn neighborator_all_in_bounds() {
+        let iter = Neighborator::new((1, 1), (3, 3));
+
+        // collecting & using contains, because order doesn't matter
+        let v: Vec<(usize, usize)> = iter.collect();
+        assert!(v.contains(&(0, 0)));
+        assert!(v.contains(&(0, 1)));
+        assert!(v.contains(&(0, 2)));
+        assert!(v.contains(&(1, 0)));
+        assert!(v.contains(&(1, 2)));
+        assert!(v.contains(&(2, 0)));
+        assert!(v.contains(&(2, 1)));
+        assert!(v.contains(&(2, 2)));
+    }
+
+    #[test]
+    fn neighborator_all_top_left() {
+        let iter = Neighborator::new((0, 0), (3, 3));
+
+        // collecting & using contains, because order doesn't matter
+        let v: Vec<(usize, usize)> = iter.collect();
+        assert_eq!(v.len(), 3);
+        assert!(v.contains(&(0, 1)));
+        assert!(v.contains(&(1, 1)));
+        assert!(v.contains(&(1, 0)));
+    }
+
+    #[test]
+    fn neighborator_all_bottom_right() {
+        let iter = Neighborator::new((2, 2), (3, 3));
+
+        // collecting & using contains, because order doesn't matter
+        let v: Vec<(usize, usize)> = iter.collect();
+        assert_eq!(v.len(), 3);
+        assert!(v.contains(&(1, 1)));
+        assert!(v.contains(&(1, 2)));
+        assert!(v.contains(&(2, 1)));
+    }
+
+    #[test]
+    fn neighborator_all_one_row() {
+        let iter = Neighborator::new((1, 0), (3, 1));
+
+        // collecting & using contains, because order doesn't matter
+        let v: Vec<(usize, usize)> = iter.collect();
+        assert_eq!(v.len(), 2);
+        assert!(v.contains(&(0, 0)));
+        assert!(v.contains(&(2, 0)));
+    }
+
+    #[test]
+    fn neighborator_all_one_column() {
+        let iter = Neighborator::new((0, 1), (1, 3));
+
+        // collecting & using contains, because order doesn't matter
+        let v: Vec<(usize, usize)> = iter.collect();
+        assert_eq!(v.len(), 2);
+        assert!(v.contains(&(0, 0)));
+        assert!(v.contains(&(0, 2)));
     }
 }

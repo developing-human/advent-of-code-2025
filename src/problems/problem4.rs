@@ -1,22 +1,13 @@
-use crate::shared::Answer;
+use crate::shared::{Answer, Neighborator};
 
 const TOO_MANY_NEIGHBORS: usize = 4;
-const NEIGHBOR_DELTAS: [(i32, i32); 8] = [
-    (-1, -1),
-    (-1, 0),
-    (-1, 1),
-    (0, -1),
-    (0, 1),
-    (1, -1),
-    (1, 0),
-    (1, 1),
-];
 
 /// A helpful diagram showing where rolls of paper are, and how many neighbors each one has. When
 /// a roll is removed, the neighbor counts are updated.
 struct HelpfulDiagram {
-    neighbor_counts: Vec<Vec<usize>>,
     rolls: Vec<Vec<bool>>,
+    neighbor_counts: Vec<Vec<usize>>,
+
     width: usize,
     height: usize,
 }
@@ -27,8 +18,10 @@ impl HelpfulDiagram {
         let width = lines[0].len();
         let height = lines.len();
 
+        // create empty rolls/neighbor_counts 2d vectors, populated below
         let rolls = vec![vec![false; height]; width];
         let neighbor_counts = vec![vec![0_usize; height]; width];
+
         let mut diagram = Self {
             width,
             height,
@@ -36,6 +29,7 @@ impl HelpfulDiagram {
             neighbor_counts,
         };
 
+        // add the paper rolls to the diagram, which updates rolls & neighbor_counts
         for (y, line) in lines.iter().enumerate() {
             for (x, c) in line.chars().enumerate() {
                 if c == '@' {
@@ -51,28 +45,38 @@ impl HelpfulDiagram {
     pub fn add_roll(&mut self, x: usize, y: usize) {
         self.rolls[x][y] = true;
 
-        let (x, y) = (x as i32, y as i32);
-        for (dx, dy) in NEIGHBOR_DELTAS {
-            let neighbor_x = x + dx;
-            let neighbor_y = y + dy;
-
-            if self.in_bounds(neighbor_x, neighbor_y) {
-                self.neighbor_counts[neighbor_x as usize][neighbor_y as usize] += 1;
-            }
+        for (neighbor_x, neighbor_y) in self.neighborator(x, y) {
+            self.neighbor_counts[neighbor_x][neighbor_y] += 1;
         }
     }
 
     /// Removes a roll, updating all neighbors and removing those as well if possible. Returns how
     /// many rolls were removed in total.
-    //TODO: Maybe deduplicate w/ add_roll if this approach works nicely
     pub fn remove_roll_recursive(&mut self, x: usize, y: usize) -> usize {
         self.rolls[x][y] = false;
         let mut removed_count = 1;
 
+        // self.draw();
+        // sleep(Duration::from_millis(5));
+
+        for (neighbor_x, neighbor_y) in self.neighborator(x, y) {
+            self.neighbor_counts[neighbor_x][neighbor_y] -= 1;
+
+            let has_roll = self.has_roll_at(neighbor_x, neighbor_y);
+            if has_roll && self.neighbor_counts[neighbor_x][neighbor_y] < TOO_MANY_NEIGHBORS {
+                removed_count += self.remove_roll_recursive(neighbor_x, neighbor_y);
+            }
+        }
+
+        removed_count
+    }
+
+    #[allow(dead_code)]
+    fn draw(&self) {
         let mut buffer = String::new();
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.has_roll_at(x as i32, y as i32) {
+                if self.has_roll_at(x, y) {
                     buffer.push('@');
                 } else {
                     buffer.push(' ');
@@ -80,46 +84,22 @@ impl HelpfulDiagram {
             }
             buffer.push('\n');
         }
-        print!("\x1B[2J"); // clear?
+        print!("\x1B[2J"); // clear screen
         println!("{buffer}");
-        // sleep(Duration::from_millis(10));
-
-        let (x, y) = (x as i32, y as i32);
-        for (dx, dy) in NEIGHBOR_DELTAS {
-            let neighbor_x = x + dx;
-            let neighbor_y = y + dy;
-
-            if self.in_bounds(neighbor_x, neighbor_y) {
-                let (neighbor_x, neighbor_y) = (neighbor_x as usize, neighbor_y as usize);
-                self.neighbor_counts[neighbor_x][neighbor_y] -= 1;
-
-                if self.has_roll_at(neighbor_x as i32, neighbor_y as i32)
-                    && self.neighbor_counts[neighbor_x][neighbor_y] < TOO_MANY_NEIGHBORS
-                {
-                    removed_count += self.remove_roll_recursive(neighbor_x, neighbor_y);
-                }
-            }
-        }
-
-        removed_count
-    }
-
-    /// Checks if coordinates are in bounds.
-    fn in_bounds(&self, x: i32, y: i32) -> bool {
-        x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32
     }
 
     /// Checks if a roll is present. Returns false if out of bounds.
-    fn has_roll_at(&self, x: i32, y: i32) -> bool {
-        if !self.in_bounds(x, y) {
-            return false;
-        }
-
-        self.rolls[x as usize][y as usize]
+    fn has_roll_at(&self, x: usize, y: usize) -> bool {
+        self.rolls[x][y]
     }
 
     fn count_adjacent_rolls(&self, x: i32, y: i32) -> usize {
         self.neighbor_counts[x as usize][y as usize]
+    }
+
+    /// Iterates over in bounds neighbors
+    fn neighborator(&self, x: usize, y: usize) -> Neighborator {
+        Neighborator::new((x, y), (self.width, self.height))
     }
 }
 
@@ -132,7 +112,7 @@ pub fn solve(input: &str) -> Answer {
         for x in 0..diagram.width {
             let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
 
-            if diagram.has_roll_at(x as i32, y as i32) && adjacent_rolls < TOO_MANY_NEIGHBORS {
+            if diagram.has_roll_at(x, y) && adjacent_rolls < TOO_MANY_NEIGHBORS {
                 can_initially_remove += 1;
             }
         }
@@ -144,7 +124,7 @@ pub fn solve(input: &str) -> Answer {
         for x in 0..diagram.width {
             let adjacent_rolls = diagram.count_adjacent_rolls(x as i32, y as i32);
 
-            if diagram.has_roll_at(x as i32, y as i32) && adjacent_rolls < TOO_MANY_NEIGHBORS {
+            if diagram.has_roll_at(x, y) && adjacent_rolls < TOO_MANY_NEIGHBORS {
                 can_eventually_remove += diagram.remove_roll_recursive(x, y);
             }
         }
