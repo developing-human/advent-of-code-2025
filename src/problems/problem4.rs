@@ -3,7 +3,7 @@ use crate::shared::{Alternator, Answer, Neighborator};
 const TOO_MANY_NEIGHBORS: usize = 4;
 
 /// A helpful diagram showing where rolls of paper are, and how many neighbors each one has. When
-/// a roll is removed, the neighbor counts are updated.
+/// a roll is removed, the neighbor counts are updated and other rolls will be removed recursively.
 struct HelpfulDiagram {
     rolls: Vec<Vec<bool>>,
     neighbor_counts: Vec<Vec<usize>>,
@@ -56,7 +56,7 @@ impl HelpfulDiagram {
         self.rolls[x][y] = false;
         let mut removed_count = 1;
 
-        self.draw();
+        // self.draw();
         // sleep(Duration::from_millis(5));
 
         for (neighbor_x, neighbor_y) in self.neighborator(x, y) {

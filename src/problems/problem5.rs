@@ -3,6 +3,13 @@ use std::{num::ParseIntError, str::FromStr};
 use crate::shared::Answer;
 
 /// A complicated inventory management system which tracks fresh ingredients by ranges of ids.
+///
+/// Builds a vector of ranges, merging overlapping ranges in the process. Once this structure
+/// exists, it can be queried in two ways:
+///
+/// 1. Check freshness of an ingredient: Find the closest range by using binary search on the
+///    vector of ranges. Check this one range to see if the ingredient is fresh.
+/// 2. Count all fresh ingredients: Add up the size of all ranges.
 struct ComplicatedInventoryManagmentSystem {
     fresh_ingredients: Vec<IngredientRange>,
 }

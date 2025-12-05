@@ -1,5 +1,11 @@
 use crate::shared::Answer;
 
+/// A BatteryBank has many batteries and can calculate its own maximum joltage for a given number
+/// of batteries.
+///
+/// Maximum joltage is calculated by starting with the N right-most batteries. The remaining
+/// batteries are processed right to left, with a new battery being offered to the first slot. If
+/// the a battery is replaced, its own battery is made available to the next slot.
 struct BatteryBank<'a> {
     joltages: &'a str,
 }
