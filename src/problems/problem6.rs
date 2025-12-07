@@ -73,39 +73,6 @@ impl ProblemIterator {
             .position(char::is_ascii_punctuation)
             .map(|i| i + cur_problem_index + 1)
     }
-
-    fn find_next_problem_index_bad(
-        lines: &[Vec<char>],
-        last_problem_index: usize,
-    ) -> Option<usize> {
-        // String::new("hi").find(pat);
-        // For each line, starting at last_problem_index, find the last digit.
-        // Then take the max of that.
-        // That's the end of this problem. Add two for start of next? Or change name of function to
-        // be finding end of current.
-        let next_problem_index = lines
-            .iter()
-            .map(|l| {
-                let first_digit_index = l
-                    .iter()
-                    .skip(last_problem_index)
-                    .position(char::is_ascii_digit)?
-                    + last_problem_index;
-
-                let digit_onward = &l[first_digit_index..];
-                digit_onward.iter().position(|c| c.is_whitespace())
-            })
-            .max()?
-            .map(|i| i + last_problem_index + 1);
-
-        if let Some(next_problem_index) = next_problem_index
-            && next_problem_index >= lines[0].len()
-        {
-            None
-        } else {
-            next_problem_index
-        }
-    }
 }
 
 impl Iterator for ProblemIterator {
