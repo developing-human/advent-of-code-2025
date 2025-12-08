@@ -1,22 +1,37 @@
 use crate::shared::Answer;
 
-pub fn solve(input: &str) -> Answer {
-    let mut splits = 0;
+struct TachyonParticleAnalyzer {
+    possible_timelines: Vec<usize>,
+    splits: usize,
+}
 
-    let line_length = input.find('\n').unwrap();
-    let mut possible_timelines: Vec<usize> = vec![0; line_length];
-    for line in input.lines() {
-        for (idx, c) in line.chars().enumerate() {
+impl TachyonParticleAnalyzer {
+    fn new() -> Self {
+        Self {
+            possible_timelines: vec![],
+            splits: 0,
+        }
+    }
+
+    /// Analyzes a single row of tachyon particles, tabulating splits and possible timelines.
+    fn analyze(&mut self, row: &str) {
+        if self.possible_timelines.is_empty() {
+            self.possible_timelines.resize(row.len(), 0);
+        }
+
+        for (idx, c) in row.chars().enumerate() {
             match c {
                 'S' => {
-                    possible_timelines[idx] = 1;
+                    self.possible_timelines[idx] = 1;
                 }
                 '^' => {
-                    if possible_timelines[idx] > 0 {
-                        possible_timelines[idx - 1] += possible_timelines[idx];
-                        possible_timelines[idx + 1] += possible_timelines[idx];
-                        possible_timelines[idx] = 0;
-                        splits += 1;
+                    if self.possible_timelines[idx] > 0 {
+                        // If a particle comes into this splitter, it's possibilities are applied
+                        // to both split beams.
+                        self.possible_timelines[idx - 1] += self.possible_timelines[idx];
+                        self.possible_timelines[idx + 1] += self.possible_timelines[idx];
+                        self.possible_timelines[idx] = 0;
+                        self.splits += 1;
                     }
                 }
                 '.' => {}
@@ -25,9 +40,23 @@ pub fn solve(input: &str) -> Answer {
         }
     }
 
+    fn splits(&self) -> usize {
+        self.splits
+    }
+
+    fn possibilities(&self) -> usize {
+        self.possible_timelines.iter().sum()
+    }
+}
+
+pub fn solve(input: &str) -> Answer {
+    let mut analyzer = TachyonParticleAnalyzer::new();
+
+    input.lines().for_each(|l| analyzer.analyze(l));
+
     Answer {
-        part1: splits,
-        part2: possible_timelines.iter().sum(),
+        part1: analyzer.splits(),
+        part2: analyzer.possibilities(),
     }
 }
 
