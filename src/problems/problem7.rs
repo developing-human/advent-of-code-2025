@@ -1,22 +1,21 @@
-use std::collections::HashSet;
-
 use crate::shared::Answer;
 
 pub fn solve(input: &str) -> Answer {
-    let mut active_beams: HashSet<usize> = HashSet::new();
-
     let mut splits = 0;
+
+    let line_length = input.find('\n').unwrap();
+    let mut possible_timelines: Vec<usize> = vec![0; line_length];
     for line in input.lines() {
         for (idx, c) in line.chars().enumerate() {
             match c {
                 'S' => {
-                    active_beams.insert(idx);
+                    possible_timelines[idx] = 1;
                 }
                 '^' => {
-                    if active_beams.contains(&idx) {
-                        active_beams.remove(&idx);
-                        active_beams.insert(idx - 1);
-                        active_beams.insert(idx + 1);
+                    if possible_timelines[idx] > 0 {
+                        possible_timelines[idx - 1] += possible_timelines[idx];
+                        possible_timelines[idx + 1] += possible_timelines[idx];
+                        possible_timelines[idx] = 0;
                         splits += 1;
                     }
                 }
@@ -28,7 +27,7 @@ pub fn solve(input: &str) -> Answer {
 
     Answer {
         part1: splits,
-        part2: 0,
+        part2: possible_timelines.iter().sum(),
     }
 }
 
@@ -58,5 +57,6 @@ mod tests {
 
         let result = solve(input.trim());
         assert_eq!(result.part1, 21);
+        assert_eq!(result.part2, 40);
     }
 }
