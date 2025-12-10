@@ -36,7 +36,7 @@ fn main() {
         "5" => println!("{:?}", problem5::solve(&input)),
         "6" => println!("{:?}", problem6::solve(&input)),
         "7" => println!("{:?}", problem7::solve(&input)),
-        "8" => println!("{:?}", problem8::solve(&input)),
+        "8" => println!("{:?}", problem8::solve(&input, 1000)),
         _ => {
             eprintln!("ERROR: {first_arg} is not yet implemented");
             exit(1);

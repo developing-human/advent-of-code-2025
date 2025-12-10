@@ -1,57 +1,65 @@
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, HashMap, HashSet},
+    collections::{BinaryHeap, HashMap},
 };
 
 use crate::shared::Answer;
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Clone)]
+struct Circuit {
+    id: CircuitId,
+    junctions: Vec<JunctionId>,
+}
+
+impl Circuit {
+    fn new(first_junction_id: JunctionId) -> Self {
+        Self {
+            id: CircuitId(first_junction_id.0),
+            junctions: vec![first_junction_id],
+        }
+    }
+
+    fn merge(&mut self, other: Circuit) {
+        self.junctions.extend(other.junctions);
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+struct CircuitId(usize);
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+struct JunctionId(usize);
+
+#[derive(Eq, PartialEq, Clone)]
 struct Junction {
+    id: JunctionId,
+    circuit_id: CircuitId,
     location: (usize, usize, usize),
 }
 
 impl Junction {
-    fn new(location: (usize, usize, usize)) -> Self {
-        Self { location }
+    fn new(location: (usize, usize, usize), id: JunctionId, circuit_id: CircuitId) -> Self {
+        Self {
+            location,
+            id,
+            circuit_id,
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Length(f64);
-
-impl Ord for Length {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // f64's bit pattern gives a total ordering that matches the heap semantics.
-        self.0.to_bits().cmp(&other.0.to_bits())
-    }
-}
-
-impl PartialOrd for Length {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Eq for Length {}
-impl PartialEq for Length {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-#[derive(Eq, Debug)]
-struct StringOfLights<'a> {
-    start: &'a Junction,
-    end: &'a Junction,
+#[derive(Eq, PartialEq)]
+struct StringOfLights {
+    start: JunctionId,
+    end: JunctionId,
 
     length: Length,
 }
 
-impl<'a> StringOfLights<'a> {
-    fn new(start: &'a Junction, end: &'a Junction) -> Self {
+impl StringOfLights {
+    fn new(start: &Junction, end: &Junction) -> Self {
         Self {
-            start,
-            end,
+            start: start.id,
+            end: end.id,
             length: Length(StringOfLights::calculate_length(
                 start.location,
                 end.location,
@@ -68,28 +76,37 @@ impl<'a> StringOfLights<'a> {
     }
 }
 
-impl<'a> Ord for StringOfLights<'a> {
+impl Ord for StringOfLights {
     fn cmp(&self, other: &Self) -> Ordering {
         // reversed, so heap will be a min heap.
         other.length.cmp(&self.length)
     }
 }
 
-impl<'a> PartialOrd for StringOfLights<'a> {
+impl PartialOrd for StringOfLights {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-// impl<'a> Eq for StringOfLights<'a> {}
-impl<'a> PartialEq for StringOfLights<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.length == other.length
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Length(f64);
+
+impl Ord for Length {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.to_bits().cmp(&other.0.to_bits())
     }
 }
 
-pub fn solve(input: &str) -> Answer {
-    let junctions: Vec<Junction> = input
+impl PartialOrd for Length {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Eq for Length {}
+
+pub fn solve(input: &str, connections_to_make: usize) -> Answer {
+    let mut junctions: Vec<Junction> = input
         .lines()
         .map(|line| line.splitn(3, ',').collect::<Vec<&str>>())
         .map(|strs| {
@@ -99,87 +116,92 @@ pub fn solve(input: &str) -> Answer {
                 strs[2].parse::<usize>().unwrap(),
             )
         })
-        .map(Junction::new)
+        .enumerate()
+        .map(|(id, location)| Junction::new(location, JunctionId(id), CircuitId(id)))
         .collect();
 
+    let circuits: Vec<Circuit> = junctions.iter().map(|j| Circuit::new(j.id)).collect();
+
+    let mut id_to_circuit: HashMap<CircuitId, Circuit> =
+        circuits.iter().map(|c| (c.id, c.clone())).collect();
+
     let mut heap: BinaryHeap<StringOfLights> = BinaryHeap::new();
-    for (idx_a, junction_a) in junctions.iter().enumerate() {
-        for (idx_b, junction_b) in junctions.iter().enumerate() {
-            if idx_b > idx_a && junction_a != junction_b {
-                heap.push(StringOfLights::new(junction_a, junction_b));
+    for (idx_a, circuit_a) in circuits.iter().enumerate() {
+        let junction_a_id = &circuit_a.junctions[0];
+        for (idx_b, circuit_b) in circuits.iter().enumerate() {
+            let junction_b_id = &circuit_b.junctions[0];
+            if idx_b > idx_a && junction_a_id != junction_b_id {
+                let junction_a = junctions[junction_a_id.0].clone();
+                let junction_b = junctions[junction_b_id.0].clone();
+                heap.push(StringOfLights::new(&junction_a, &junction_b));
             }
         }
     }
 
-    // Maps every junction to a hash set of connected junctions
-    let mut connected_junctions: HashMap<&Junction, HashSet<&Junction>> = HashMap::new();
-    let mut checked_junctions: HashSet<&Junction> = HashSet::new();
+    let mut circuits_remaining = junctions.len();
+    let mut connections_made = 0;
+    let mut part1_answer = 0;
+    let mut part2_answer = 0;
 
-    for _ in 0..1000 {
-        let lights = heap.pop();
-        if lights.is_none() {
-            break;
+    // connect junctions until both anwers are calculated
+    while let Some(lights) = heap.pop() {
+        // when enough connections are made, calculate the answer to part1 (but keep going)
+        if connections_made == connections_to_make {
+            let mut sizes = id_to_circuit
+                .values()
+                .map(|c| c.junctions.len())
+                .collect::<Vec<_>>();
+
+            sizes.sort();
+
+            part1_answer = sizes.iter().rev().take(3).product();
         }
 
-        let lights = lights.unwrap();
+        connections_made += 1;
 
-        connected_junctions
-            .entry(lights.start)
-            .or_default()
-            .insert(lights.end);
+        let new_circuit_id;
+        let junctions_to_update;
 
-        connected_junctions
-            .entry(lights.end)
-            .or_default()
-            .insert(lights.start);
-    }
+        // merges two circuits together, if they need to be merged
+        {
+            let junction_start = &junctions[lights.start.0];
+            let junction_end = &junctions[lights.end.0];
 
-    let mut circuits: Vec<HashSet<&&Junction>> = vec![];
-    for (junction, connections) in connected_junctions.iter() {
-        // while connected_junctions.len() > checked_junctions.len() {
-        // for (junction, connections) in connected_junctions {
-        // let (junction, connections) = connected_junctions.iter().next().unwrap();
-        if checked_junctions.contains(junction) {
-            continue;
-        }
-
-        println!("outer");
-
-        let mut current_circuit = HashSet::new();
-        let mut junctions_to_explore = HashSet::new();
-
-        junctions_to_explore.extend(connections);
-        current_circuit.insert(junction);
-        checked_junctions.insert(junction);
-        // connected_junctions.remove(junction);
-
-        while !junctions_to_explore.is_empty() {
-            println!("inner");
-            let exploring = *junctions_to_explore.iter().next().unwrap();
-            current_circuit.insert(exploring);
-            junctions_to_explore.remove(exploring);
-
-            dbg!(exploring);
-            if checked_junctions.contains(exploring) {
+            if junction_start.circuit_id == junction_end.circuit_id {
                 continue;
             }
+            // remove the "other" circuit
+            let other_circuit = id_to_circuit
+                .remove(&junction_end.circuit_id)
+                .expect("junction_end.circuit_id should exist")
+                .clone();
 
-            checked_junctions.insert(exploring);
+            new_circuit_id = junction_start.circuit_id;
+            junctions_to_update = other_circuit.junctions.clone();
 
-            let extend_with = connected_junctions.get(exploring).unwrap();
-            junctions_to_explore.extend(extend_with);
+            id_to_circuit
+                .entry(junction_start.circuit_id)
+                .and_modify(|c| c.merge(other_circuit));
         }
 
-        circuits.push(current_circuit);
+        // assign everything in the other circuit to "this" circuit
+        for junction_id in junctions_to_update {
+            junctions[junction_id.0].circuit_id = new_circuit_id;
+        }
+
+        // when only one circuit remains, calculate the answer to part 2
+        circuits_remaining -= 1;
+        if circuits_remaining == 1 {
+            let junction_start = &junctions[lights.start.0];
+            let junction_end = &junctions[lights.end.0];
+            part2_answer = junction_start.location.0 * junction_end.location.0;
+            break;
+        }
     }
 
-    let mut sizes = circuits.iter().map(|c| c.len()).collect::<Vec<usize>>();
-    sizes.sort();
-
-    let product = sizes.iter().rev().take(3).product();
     Answer {
-        part1: product,
-        part2: 0,
+        part1: part1_answer,
+        part2: part2_answer,
     }
 }
 
@@ -211,8 +233,8 @@ mod tests {
 984,92,344
 425,690,689"#;
 
-        let result = solve(input.trim());
+        let result = solve(input.trim(), 10);
         assert_eq!(result.part1, 40);
-        assert_eq!(result.part2, 0);
+        assert_eq!(result.part2, 25272);
     }
 }
