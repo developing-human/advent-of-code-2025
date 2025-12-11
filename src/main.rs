@@ -11,6 +11,7 @@ pub mod problems {
     pub mod problem6;
     pub mod problem7;
     pub mod problem8;
+    pub mod problem9;
 }
 
 pub mod shared;
@@ -37,6 +38,7 @@ fn main() {
         "6" => println!("{:?}", problem6::solve(&input)),
         "7" => println!("{:?}", problem7::solve(&input)),
         "8" => println!("{:?}", problem8::solve(&input, 1000)),
+        "9" => println!("{:?}", problem9::solve(&input)),
         _ => {
             eprintln!("ERROR: {first_arg} is not yet implemented");
             exit(1);
