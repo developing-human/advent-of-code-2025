@@ -1,3 +1,12 @@
+// Checks if rectangles are inside a polygon by checking if the borders of the rectangle intersect
+// the borders of the polygon.
+//
+// There were tricky edge cases around:
+// 1. concave vertices (which cause an intersection, but don't exit the polygon). I opted to track
+//    which vertices were concave, and special case them.
+// 2. rectangle edges stopping on borders, which I handled by imagining rectangle edges travel down
+//    the center of a cell, but polygon edges are on the sides. Which side the polygon edge is on
+//    is determined by the direction it is pointing (up/down/left/right).
 use std::collections::HashSet;
 
 use itertools::Itertools;
@@ -38,24 +47,9 @@ impl Rect {
 
         width * height
     }
-
-    fn lines(&self) -> Vec<Line> {
-        let top_right = Point::new(self.bottom_right.x, self.top_left.y);
-        let bottom_left = Point::new(self.top_left.x, self.bottom_right.y);
-        vec![
-            Line::new(&self.top_left, &top_right),
-            Line::new(&top_right, &self.bottom_right),
-            Line::new(&self.bottom_right, &bottom_left),
-            Line::new(&bottom_left, &self.top_left),
-        ]
-    }
-
-    fn perimeter_points(&self) -> HashSet<Point> {
-        self.lines().iter().flat_map(|l| l.points()).collect()
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Line {
     start: Point,
     end: Point,
@@ -69,27 +63,18 @@ impl Line {
         }
     }
 
-    fn points(&self) -> Vec<Point> {
-        if self.start.x == self.end.x {
-            let min_y = self.start.y.min(self.end.y);
-            let max_y = self.start.y.max(self.end.y);
+    fn going_down(&self) -> bool {
+        self.end.x == self.start.x && self.end.y > self.start.y
+    }
 
-            (min_y..=max_y)
-                .map(|y| Point::new(self.start.x, y))
-                .collect()
-        } else {
-            let min_x = self.start.x.min(self.end.x);
-            let max_x = self.start.x.max(self.end.x);
-
-            (min_x..=max_x)
-                .map(|x| Point::new(x, self.start.y))
-                .collect()
-        }
+    fn going_right(&self) -> bool {
+        self.end.y == self.start.y && self.end.x > self.start.x
     }
 }
 
 struct Polygon {
-    borders: Vec<Line>,
+    vertical_borders: Vec<Line>,
+    horizontal_borders: Vec<Line>,
     concave_vertices: HashSet<Point>,
 }
 
@@ -104,6 +89,18 @@ impl Polygon {
                 points.last().unwrap(),
                 points.first().unwrap(),
             )))
+            .collect::<Vec<_>>();
+
+        let vertical_borders = borders
+            .clone()
+            .into_iter()
+            .filter(|l| l.start.x == l.end.x)
+            .collect::<Vec<_>>();
+
+        let horizontal_borders = borders
+            .clone()
+            .into_iter()
+            .filter(|l| l.start.y == l.end.y)
             .collect::<Vec<_>>();
 
         let concave_vertices = borders
@@ -136,7 +133,8 @@ impl Polygon {
             )
             .collect::<HashSet<_>>();
         Self {
-            borders,
+            vertical_borders,
+            horizontal_borders,
             concave_vertices,
         }
     }
@@ -155,16 +153,17 @@ pub fn solve(input: &str) -> Answer {
     // will be the largest that fits.
     let max_in_bound_rect_area = all_rects
         .iter()
-        .enumerate()
-        .inspect(|(idx, rect)| {
-            println!(
-                "processing rect: {} of {} (area = {})",
-                idx,
-                all_rects.len(),
-                rect.area
-            )
-        })
-        .map(|(_, rect)| rect)
+        // .enumerate()
+        // .inspect(|(idx, rect)| {
+        //     println!(
+        //         "processing rect: {} of {} (area = {}) {rect:?}",
+        //         idx,
+        //         all_rects.len(),
+        //         rect.area
+        //     )
+        // })
+        // .skip(47694)
+        // .map(|(_, rect)| rect)
         .filter(|r| rect_in_bounds(r, &polygon))
         .map(|r| r.area)
         .next()
@@ -194,62 +193,108 @@ fn build_points(input: &str) -> Vec<Point> {
 }
 
 fn rect_in_bounds(rect: &Rect, polygon: &Polygon) -> bool {
-    let top_right = Point::new(rect.bottom_right.x, rect.top_left.y);
-    let bottom_left = Point::new(rect.top_left.x, rect.bottom_right.y);
+    let min_x = rect.top_left.x.min(rect.bottom_right.x);
+    let max_x = rect.top_left.x.max(rect.bottom_right.x);
+    let min_y = rect.top_left.y.min(rect.bottom_right.y);
+    let max_y = rect.top_left.y.max(rect.bottom_right.y);
 
-    // if the "implied" corners aren't in bounds, the rect isn't in bounds
-    if !point_in_bounds(&top_right, polygon) || !point_in_bounds(&bottom_left, polygon) {
-        return false;
-    }
+    let top_line = Line::new(&Point::new(min_x, min_y), &Point::new(max_x, min_y));
+    let bottom_line = Line::new(&Point::new(min_x, max_y), &Point::new(max_x, max_y));
+    let left_line = Line::new(&Point::new(min_x, min_y), &Point::new(min_x, max_y));
+    let right_line = Line::new(&Point::new(max_x, min_y), &Point::new(max_x, max_y));
 
-    // the corners are all in bounds, now walk the perimeter
-    rect.perimeter_points()
-        .iter()
-        .all(|p| point_in_bounds(p, polygon))
+    !has_intersections(&top_line, polygon)
+        && !has_intersections(&bottom_line, polygon)
+        && !has_intersections_vertical(&left_line, polygon)
+        && !has_intersections_vertical(&right_line, polygon)
 }
 
-fn point_in_bounds(point: &Point, polygon: &Polygon) -> bool {
-    // Count how many borders are crossed between (0, point.y) and (point.x, point.y).
-    let intersecting_borders = polygon
-        .borders
+fn has_intersections(line: &Line, polygon: &Polygon) -> bool {
+    polygon
+        .vertical_borders
         .iter()
-        .filter(|b| b.start.x == b.end.x) // only vertical lines
-        .filter(|b| point.x >= b.start.x) // point is to the right of this border
+        // border is at or after start of this line
+        .filter(|b| {
+            if b.going_down() {
+                b.start.x >= line.start.x
+            } else {
+                b.start.x > line.start.x
+            }
+        })
+        // border is at or before the end of this line
+        .filter(|b| {
+            if b.going_down() {
+                b.start.x < line.end.x
+            } else {
+                b.start.x <= line.end.x
+            }
+        })
+        // line intersects this border
         .filter(|b| {
             let min = b.start.y.min(b.end.y);
             let max = b.start.y.max(b.end.y);
-            point.y >= min && point.y <= max
+            line.start.y >= min && line.start.y <= max
         })
-        .collect::<Vec<_>>();
+        // is not intersecting a border at a concave vertex
+        //
+        // this is an edge case where crossing these vertices keeps the line on the inside of the
+        // polygon.
+        .any(|b| {
+            let vertex_to_check = if line.start.y == b.start.y {
+                b.start
+            } else if line.start.y == b.end.y {
+                b.end
+            } else {
+                return true;
+            };
 
-    let point_on_border = intersecting_borders.iter().any(|b| {
-        let min = b.start.y.min(b.end.y);
-        let max = b.start.y.max(b.end.y);
-        point.x == b.start.x && point.y >= min && point.y <= max
-    });
+            !polygon.concave_vertices.contains(&vertex_to_check)
+        })
+}
 
-    if point_on_border {
-        return true;
-    }
+// It might be possible to merge this with has_intersections... but I suspect keeping them separate
+// is easier to read & reason about.
+fn has_intersections_vertical(line: &Line, polygon: &Polygon) -> bool {
+    polygon
+        .horizontal_borders
+        .iter()
+        // border is at or after start of this line
+        .filter(|b| {
+            if b.going_right() {
+                b.start.y > line.start.y
+            } else {
+                b.start.y >= line.start.y
+            }
+        })
+        // border is at or before the end of this line
+        .filter(|b| {
+            if b.going_right() {
+                b.start.y <= line.end.y
+            } else {
+                b.start.y < line.end.y
+            }
+        })
+        // line intersects this border
+        .filter(|b| {
+            let min = b.start.x.min(b.end.x);
+            let max = b.start.x.max(b.end.x);
+            line.start.x >= min && line.start.x <= max
+        })
+        // is not intersecting a border at a concave vertex
+        //
+        // this is an edge case where crossing these vertices keeps the line on the inside of the
+        // polygon.
+        .any(|b| {
+            let vertex_to_check = if line.start.x == b.start.x {
+                b.start
+            } else if line.start.x == b.end.x {
+                b.end
+            } else {
+                return true;
+            };
 
-    // If the ray passed through a concave vertice, ignore this intersection.
-    let intersecting_borders = intersecting_borders.iter().filter(|b| {
-        let vertex_to_check = if point.y == b.start.y {
-            b.start
-        } else if point.y == b.end.y {
-            b.end
-        } else {
-            return true;
-        };
-
-        !polygon.concave_vertices.contains(&vertex_to_check)
-    });
-
-    let count = intersecting_borders.count();
-
-    // println!("count: {count}");
-
-    count % 2 == 1
+            !polygon.concave_vertices.contains(&vertex_to_check)
+        })
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -275,6 +320,8 @@ impl From<&Line> for Direction {
         }
     }
 }
+
+// The amount of tests below may suggest edge cases were kicking my butt.
 
 #[cfg(test)]
 mod tests {
@@ -304,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn check_point_in_bounds() {
+    fn check_has_intersections() {
         // ..............
         // .......0XXX1..
         // .......X...X..
@@ -327,111 +374,43 @@ mod tests {
         let points = build_points(input.trim());
         let poly = Polygon::new(&points);
 
-        assert!(point_in_bounds(&Point::new(10, 6), &poly)); // broken
-        assert!(!point_in_bounds(&Point::new(12, 6), &poly)); // broken
-        assert!(!point_in_bounds(&Point::new(13, 6), &poly)); // broken
+        // this is the top line of the polygon, going backwards
+        // meaning the rect corner used was "1", and the "0" is implied.
+        // landing on the 0-7 edge shouldn't count, since it started in bounds.
+        assert!(!has_intersections(
+            &Line::new(&Point::new(7, 1), &Point::new(11, 1)),
+            &poly,
+        ));
 
-        assert!(!point_in_bounds(&Point::new(2, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(3, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(4, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(5, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(6, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(7, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(8, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(9, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(10, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(11, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 0), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 0), &poly));
+        assert!(has_intersections(
+            &Line::new(&Point::new(6, 1), &Point::new(7, 1)),
+            &poly,
+        ));
 
-        assert!(!point_in_bounds(&Point::new(2, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(3, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(4, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(5, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(6, 1), &poly));
-        assert!(point_in_bounds(&Point::new(7, 1), &poly));
-        assert!(point_in_bounds(&Point::new(8, 1), &poly));
-        assert!(point_in_bounds(&Point::new(9, 1), &poly));
-        assert!(point_in_bounds(&Point::new(10, 1), &poly));
-        assert!(point_in_bounds(&Point::new(11, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 1), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 1), &poly));
-
-        assert!(!point_in_bounds(&Point::new(2, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(3, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(4, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(5, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(6, 2), &poly));
-        assert!(point_in_bounds(&Point::new(7, 2), &poly));
-        assert!(point_in_bounds(&Point::new(8, 2), &poly));
-        assert!(point_in_bounds(&Point::new(9, 2), &poly));
-        assert!(point_in_bounds(&Point::new(10, 2), &poly));
-        assert!(point_in_bounds(&Point::new(11, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 2), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 2), &poly));
-
-        assert!(point_in_bounds(&Point::new(2, 3), &poly));
-        assert!(point_in_bounds(&Point::new(3, 3), &poly));
-        assert!(point_in_bounds(&Point::new(4, 3), &poly));
-        assert!(point_in_bounds(&Point::new(5, 3), &poly));
-        assert!(point_in_bounds(&Point::new(6, 3), &poly));
-        assert!(point_in_bounds(&Point::new(7, 3), &poly));
-        assert!(point_in_bounds(&Point::new(8, 3), &poly));
-        assert!(point_in_bounds(&Point::new(9, 3), &poly));
-        assert!(point_in_bounds(&Point::new(10, 3), &poly));
-        assert!(point_in_bounds(&Point::new(11, 3), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 3), &poly));
-
-        assert!(point_in_bounds(&Point::new(2, 4), &poly));
-        assert!(point_in_bounds(&Point::new(3, 4), &poly));
-        assert!(point_in_bounds(&Point::new(4, 4), &poly));
-        assert!(point_in_bounds(&Point::new(5, 4), &poly));
-        assert!(point_in_bounds(&Point::new(6, 4), &poly));
-        assert!(point_in_bounds(&Point::new(7, 4), &poly));
-        assert!(point_in_bounds(&Point::new(8, 4), &poly));
-        assert!(point_in_bounds(&Point::new(9, 4), &poly));
-        assert!(point_in_bounds(&Point::new(10, 4), &poly));
-        assert!(point_in_bounds(&Point::new(11, 4), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 4), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 4), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 4), &poly));
-
-        assert!(point_in_bounds(&Point::new(2, 5), &poly));
-        assert!(point_in_bounds(&Point::new(3, 5), &poly));
-        assert!(point_in_bounds(&Point::new(4, 5), &poly));
-        assert!(point_in_bounds(&Point::new(5, 5), &poly));
-        assert!(point_in_bounds(&Point::new(6, 5), &poly));
-        assert!(point_in_bounds(&Point::new(7, 5), &poly));
-        assert!(point_in_bounds(&Point::new(8, 5), &poly));
-        assert!(point_in_bounds(&Point::new(9, 5), &poly));
-        assert!(point_in_bounds(&Point::new(10, 5), &poly));
-        assert!(point_in_bounds(&Point::new(11, 5), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 5), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 5), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 5), &poly));
-
-        assert!(!point_in_bounds(&Point::new(2, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(3, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(4, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(5, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(6, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(7, 6), &poly));
-        assert!(!point_in_bounds(&Point::new(8, 6), &poly));
-        assert!(point_in_bounds(&Point::new(9, 6), &poly));
-        assert!(point_in_bounds(&Point::new(11, 6), &poly));
-
-        assert!(!point_in_bounds(&Point::new(2, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(3, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(4, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(5, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(6, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(7, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(8, 7), &poly));
-        assert!(point_in_bounds(&Point::new(9, 7), &poly));
-        assert!(point_in_bounds(&Point::new(10, 7), &poly));
-        assert!(point_in_bounds(&Point::new(11, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(12, 7), &poly));
-        assert!(!point_in_bounds(&Point::new(13, 7), &poly));
+        assert!(has_intersections(
+            &Line::new(&Point::new(5, 1), &Point::new(8, 1)),
+            &poly,
+        ));
+        assert!(has_intersections(
+            &Line::new(&Point::new(5, 2), &Point::new(8, 2)),
+            &poly,
+        ));
+        assert!(!has_intersections(
+            &Line::new(&Point::new(5, 3), &Point::new(8, 3)),
+            &poly,
+        ));
+        assert!(has_intersections(
+            &Line::new(&Point::new(5, 1), &Point::new(12, 1)),
+            &poly,
+        ));
+        assert!(has_intersections(
+            &Line::new(&Point::new(0, 3), &Point::new(4, 3)),
+            &poly,
+        ));
+        assert!(!has_intersections(
+            &Line::new(&Point::new(7, 1), &Point::new(11, 1)),
+            &poly,
+        ));
     }
 
     #[test]
