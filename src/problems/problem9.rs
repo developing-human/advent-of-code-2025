@@ -53,22 +53,52 @@ impl Rect {
 struct Line {
     start: Point,
     end: Point,
+    direction: Direction,
 }
 
 impl Line {
     fn new(start: &Point, end: &Point) -> Self {
+        let direction = if start.x == end.x {
+            if end.y > start.y {
+                Direction::Down
+            } else {
+                Direction::Up
+            }
+        } else if end.x > start.x {
+            Direction::Right
+        } else {
+            Direction::Left
+        };
+
         Self {
             start: *start,
             end: *end,
+            direction,
         }
     }
+}
 
-    fn going_down(&self) -> bool {
-        self.end.x == self.start.x && self.end.y > self.start.y
-    }
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+enum Direction {
+    Up,
+    Right,
+    Down,
+    Left,
+}
 
-    fn going_right(&self) -> bool {
-        self.end.y == self.start.y && self.end.x > self.start.x
+impl From<&Line> for Direction {
+    fn from(line: &Line) -> Self {
+        if line.start.x == line.end.x {
+            if line.end.y > line.start.y {
+                Self::Down
+            } else {
+                Self::Up
+            }
+        } else if line.end.x > line.start.x {
+            Self::Right
+        } else {
+            Self::Left
+        }
     }
 }
 
@@ -113,9 +143,7 @@ impl Polygon {
             .map(|(first, second)| {
                 // first.end and second.start are the same. Is that point convex?
                 let vertex = first.end;
-                let first_dir: Direction = first.into();
-                let second_dir: Direction = second.into();
-                (vertex, first_dir, second_dir)
+                (vertex, first.direction, second.direction)
             })
             .filter_map(
                 |(vertex, first_dir, second_dir)| match (first_dir, second_dir) {
@@ -215,7 +243,7 @@ fn has_intersections(line: &Line, polygon: &Polygon) -> bool {
         .iter()
         // border is at or after start of this line
         .filter(|b| {
-            if b.going_down() {
+            if b.direction == Direction::Down {
                 b.start.x >= line.start.x
             } else {
                 b.start.x > line.start.x
@@ -223,7 +251,7 @@ fn has_intersections(line: &Line, polygon: &Polygon) -> bool {
         })
         // border is at or before the end of this line
         .filter(|b| {
-            if b.going_down() {
+            if b.direction == Direction::Down {
                 b.start.x < line.end.x
             } else {
                 b.start.x <= line.end.x
@@ -260,7 +288,7 @@ fn has_intersections_vertical(line: &Line, polygon: &Polygon) -> bool {
         .iter()
         // border is at or after start of this line
         .filter(|b| {
-            if b.going_right() {
+            if b.direction == Direction::Right {
                 b.start.y > line.start.y
             } else {
                 b.start.y >= line.start.y
@@ -268,7 +296,7 @@ fn has_intersections_vertical(line: &Line, polygon: &Polygon) -> bool {
         })
         // border is at or before the end of this line
         .filter(|b| {
-            if b.going_right() {
+            if b.direction == Direction::Right {
                 b.start.y <= line.end.y
             } else {
                 b.start.y < line.end.y
@@ -295,30 +323,6 @@ fn has_intersections_vertical(line: &Line, polygon: &Polygon) -> bool {
 
             !polygon.concave_vertices.contains(&vertex_to_check)
         })
-}
-
-#[derive(Debug, Copy, Clone)]
-enum Direction {
-    Up,
-    Right,
-    Down,
-    Left,
-}
-
-impl From<&Line> for Direction {
-    fn from(line: &Line) -> Self {
-        if line.start.x == line.end.x {
-            if line.end.y > line.start.y {
-                Self::Down
-            } else {
-                Self::Up
-            }
-        } else if line.end.x > line.start.x {
-            Self::Right
-        } else {
-            Self::Left
-        }
-    }
 }
 
 // The amount of tests below may suggest edge cases were kicking my butt.
